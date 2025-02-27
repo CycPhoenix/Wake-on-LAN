@@ -1,10 +1,12 @@
 import sys
 import json
 import socket
+import datetime
 from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton, QMessageBox, QListWidget, QComboBox
 from wakeonlan import send_magic_packet
 
 FAVORITES_FILE = "mac_addresses.json"
+LOG_FILE = "wol_log.txt"
 
 class WakeOnWanApp(QWidget):
     def __init__(self):
@@ -30,6 +32,8 @@ class WakeOnWanApp(QWidget):
         self.add_fav_button = QPushButton("Add to Favorites")
         self.remove_fav_button = QPushButton("Remove Selected")
 
+        self.view_logs_button = QPushButton("View_Logs")
+
         layout.addWidget(self.label)
         layout.addWidget(self.mac_input)
         layout.addWidget(self.network_mode_label)
@@ -41,11 +45,13 @@ class WakeOnWanApp(QWidget):
         layout.addWidget(self.favorites_list)
         layout.addWidget(self.add_fav_button)
         layout.addWidget(self.remove_fav_button)
+        layout.addWidget(self.view_logs_button)
 
         self.wake_button.clicked.connect(self.wake_pc)
         self.add_fav_button.clicked.connect(self.add_favorite)
         self.remove_fav_button.clicked.connect(self.remove_favorite)
         self.favorites_list.itemClicked.connect(self.select_favorite)
+        self.view_logs_button.clicked.connect(self.view_logs)
 
         self.setLayout(layout)
         self.load_favorites()
@@ -58,6 +64,7 @@ class WakeOnWanApp(QWidget):
         if mac_address:
             try:
                 self.send_wol_packet(mac_address, ip)
+                self.log_attempt(mac_address, ip, mode, "SUCCESS ✅")
                 QMessageBox.information(self, "Success", f"Magic packet sent to {mac_address} via {mode} ✅")
             except Exception as e:
                 QMessageBox.warning(self, "Error", f"Failed to send packet: {str(e)} ❌")
@@ -71,6 +78,18 @@ class WakeOnWanApp(QWidget):
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
             s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
             s.sendto(magic_packet, (ip, port))
+
+    def log_attempts(self, mac, ip, mode, status):
+        with open(LOG_FILE, "a") as log:
+            log.write(f"[{datetime.datetime.now()}] {mode} Wake sent to {mac} via {ip} - {status}\n")
+
+    def view_logs(self):
+        try:
+            with open(LOG_FILE, "r") as f:
+                logs = f.read()
+            QMessageBox.information(self, "Wake-on-WAN Logs", logs or "No logs yet.")
+        except FileNotFoundError:
+            QMessageBox.warning(self, "Error", "No logs found.")
 
     def load_favorites(self):
         try:
